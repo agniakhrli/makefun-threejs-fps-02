@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tactical Breach: 3D FPS Arena</title>
+<style>
+  :root {
+    --canvas: #121418;
+    --surface: #1b1e24;
+    --hairline: #2a2f38;
+    --ink: #f0ede6;
+    --muted: #959da6;
+    --accent: #e69524;
+    --radius-panel: 6px;
+    --radius-control: 8px;
+    --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-readout: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-ui);
+  }
+  #game, #game canvas { position: fixed; inset: 0; display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); }
+  #crosshair i { position: absolute; background: var(--ink); opacity: .85; }
+  #crosshair i:nth-child(1) { left: 10px; top: 0; width: 2px; height: 7px; }
+  #crosshair i:nth-child(2) { left: 10px; bottom: 0; width: 2px; height: 7px; }
+  #crosshair i:nth-child(3) { top: 10px; left: 0; height: 2px; width: 7px; }
+  #crosshair i:nth-child(4) { top: 10px; right: 0; height: 2px; width: 7px; }
+
+  #hitmarker { position: fixed; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%) rotate(45deg); opacity: 0; transition: opacity 90ms linear; }
+  #hitmarker.on { opacity: 1; }
+  #hitmarker i { position: absolute; background: var(--accent); }
+  #hitmarker i:nth-child(1) { left: 12px; top: 0; width: 2px; height: 8px; }
+  #hitmarker i:nth-child(2) { left: 12px; bottom: 0; width: 2px; height: 8px; }
+  #hitmarker i:nth-child(3) { top: 12px; left: 0; height: 2px; width: 8px; }
+  #hitmarker i:nth-child(4) { top: 12px; right: 0; height: 2px; width: 8px; }
+
+  #ammo {
+    position: fixed;
+    right: 32px;
+    bottom: 24px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: var(--font-readout);
+    font-size: 56px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--ink);
+  }
+  #ammo.empty #ammo-mag { color: var(--accent); }
+  #ammo-reserve { font-size: 16px; letter-spacing: -0.01em; color: var(--muted); }
+
+  #hud-stats {
+    position: fixed;
+    left: 32px;
+    bottom: 24px;
+    font-family: var(--font-readout);
+    font-size: 14px;
+    color: var(--muted);
+    display: flex;
+    gap: 20px;
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    padding: 10px 16px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-panel);
+    pointer-events: auto;
+  }
+  #hud-stats b { color: var(--ink); font-weight: 500; }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: color-mix(in srgb, var(--canvas) 88%, transparent);
+    z-index: 10;
+  }
+  .overlay[hidden] { display: none; }
+  .panel {
+    width: min(460px, 100%);
+    padding: 32px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-panel);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+  }
+  .panel h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    line-height: 1.15;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+  .panel p {
+    margin: 0 0 20px;
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .btn {
+    font: inherit;
+    font-weight: 500;
+    padding: 12px 18px;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-control);
+    background: var(--accent);
+    color: var(--canvas);
+    cursor: pointer;
+    transition: background-color 120ms ease;
+  }
+  .btn:hover { background: var(--ink); border-color: var(--ink); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .buy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .buy-item {
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    padding: 10px 14px;
+    border-radius: var(--radius-control);
+    cursor: pointer;
+    text-align: left;
+    color: var(--ink);
+    font: inherit;
+  }
+  .buy-item:hover { border-color: var(--accent); }
+  .buy-item span { display: block; font-size: 12px; color: var(--accent); font-family: var(--font-readout); margin-top: 4px; }
+
+  .keys {
+    margin: 20px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .keys li { display: flex; align-items: center; gap: 8px; }
+  .keys kbd {
+    min-width: 24px;
+    padding: 2px 6px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-panel);
+    font-family: var(--font-readout);
+    font-size: 11px;
+    color: var(--ink);
+    text-align: center;
+    background: var(--canvas);
+  }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud" aria-hidden="true">
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+  <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+  <div id="ammo"><span id="ammo-mag">30</span><span id="ammo-reserve">/ 90</span></div>
+  <div id="hud-stats">
+    <div>HP <b id="health-value">100</b></div>
+    <div>$ <b id="money-value">800</b></div>
+    <div>Rnd <b id="round-value">1</b></div>
+    <div>Time <b id="timer-value">2:00</b></div>
+    <div>Score <b id="score-value">0</b></div>
+  </div>
+</div>
+
+<div id="overlay" class="overlay">
+  <section class="panel" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+    <h1 id="overlay-title">Tactical Breach</h1>
+    <p id="overlay-copy">Round-based tactical shooter. Eliminate enemy bots or plant/defuse the bomb. Manage your economy and weapons.</p>
+    <button id="play" class="btn" type="button">Click to play</button>
+    <ul class="keys">
+      <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move &nbsp; <kbd>Mouse</kbd> Look</li>
+      <li><kbd>Click</kbd> Fire &nbsp; <kbd>R</kbd> Reload &nbsp; <kbd>B</kbd> Buy Menu</li>
+      <li><kbd>1</kbd> Rifle &nbsp; <kbd>2</kbd> Pistol &nbsp; <kbd>3</kbd> Knife</li>
+      <li><kbd>Ctrl</kbd> Crouch &nbsp; <kbd>Space</kbd> Jump</li>
+    </ul>
+  </section>
+</div>
+
+<div id="buy-overlay" class="overlay" hidden>
+  <section class="panel" role="dialog" aria-modal="true">
+    <h1>Buy Menu (Phase)</h1>
+    <p>Available Funds: $<b id="buy-money">800</b></p>
+    <div class="buy-grid">
+      <button class="buy-item" data-item="rifle" data-cost="2700"><b>Assault Rifle</b><span>$2700</span></button>
+      <button class="buy-item" data-item="pistol" data-cost="400"><b>Heavy Pistol</b><span>$400</span></button>
+      <button class="buy-item" data-item="armor" data-cost="650"><b>Kevlar Armor</b><span>$650</span></button>
+      <button class="buy-item" data-item="grenade" data-cost="300"><b>HE Grenade</b><span>$300</span></button>
+    </div>
+    <button id="close-buy" class="btn" type="button">Close Buy Menu (B)</button>
+  </section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
